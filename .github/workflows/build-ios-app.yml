@@ -1,0 +1,172 @@
+name: Build iOS App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - ipa
+          - tipa
+          - both
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        run: |
+          xcode-select --install 2>/dev/null || echo "Xcode already installed"
+          sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          brew install libimobiledevice
+          # For tipa support
+          pip3 install requests
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Build for iOS
+        run: |
+          xcodebuild \
+            -scheme SimplyNFC \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            -arch arm64 \
+            -sdk iphoneos \
+            clean build
+
+      - name: Create Archive
+        run: |
+          xcodebuild \
+            -scheme SimplyNFC \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            -arch arm64 \
+            -sdk iphoneos \
+            -archivePath build/SimplyNFC.xcarchive \
+            archive
+
+      - name: Create IPA without signing
+        run: |
+          mkdir -p build/ExportOptions
+          cat > build/ExportOptions/ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>ad-hoc</string>
+              <key>teamID</key>
+              <string></string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>thinning</key>
+              <string>&lt;none&gt;</string>
+          </dict>
+          </plist>
+          EOF
+          
+          xcodebuild \
+            -archivePath build/SimplyNFC.xcarchive \
+            -exportOptionsPlist build/ExportOptions/ExportOptions.plist \
+            -exportPath build/IPA \
+            -allowProvisioningUpdates \
+            exportArchive || echo "Attempting unsigned export..."
+
+      - name: Create unsigned IPA (fallback)
+        if: failure()
+        run: |
+          # Extract app from archive directly
+          cd build/SimplyNFC.xcarchive/Products/Applications
+          APP_NAME=$(ls -d *.app | head -1)
+          mkdir -p ../../../../../../IPA
+          cp -r "$APP_NAME" ../../../../../../IPA/
+          cd ../../../../../../
+          
+          # Create IPA structure
+          mkdir -p IPA/Payload
+          mv IPA/*.app IPA/Payload/
+          cd IPA
+          zip -r SimplyNFC.ipa Payload
+          mv SimplyNFC.ipa ../SimplyNFC.ipa
+          cd ..
+          rm -rf IPA/Payload
+
+      - name: Locate IPA
+        run: |
+          if [ -f "build/SimplyNFC.ipa" ]; then
+            echo "IPA_PATH=build/SimplyNFC.ipa" >> $GITHUB_ENV
+          elif [ -f "build/IPA/SimplyNFC.ipa" ]; then
+            echo "IPA_PATH=build/IPA/SimplyNFC.ipa" >> $GITHUB_ENV
+          else
+            find build -name "*.ipa" -type f | head -1 | xargs -I {} echo "IPA_PATH={}" >> $GITHUB_ENV
+          fi
+
+      - name: Create TIPA for TrollStore
+        if: success() && env.IPA_PATH != ''
+        run: |
+          # Create TIPA directory structure
+          mkdir -p build/TIPA
+          cd build
+          
+          # TIPA is essentially an IPA with additional metadata
+          cp "${{ env.IPA_PATH }}" TIPA/SimplyNFC.tipa
+          
+          # Add TrollStore signature (if needed)
+          # This is optional - TrollStore can also use regular IPAs
+          echo "TIPA created at TIPA/SimplyNFC.tipa"
+          
+      - name: Verify builds
+        run: |
+          echo "=== Build Artifacts ==="
+          find build -type f \( -name "*.ipa" -o -name "*.tipa" \) -exec ls -lh {} \;
+
+      - name: Upload IPA to artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimplyNFC-ipa
+          path: build/**/*.ipa
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload TIPA to artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimplyNFC-tipa
+          path: build/TIPA/**/*.tipa
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/**/*.ipa
+            build/TIPA/**/*.tipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
