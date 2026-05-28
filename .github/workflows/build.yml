@@ -38,6 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install libimobiledevice || true
+          brew install xcodegen || true
 
       - name: Build IPA
         if: env.BUILD_TYPE == 'ipa' || env.BUILD_TYPE == 'both' || env.BUILD_TYPE == ''

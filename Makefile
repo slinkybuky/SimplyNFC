@@ -18,7 +18,7 @@ project: $(PROJECT_DIR)
 
 $(PROJECT_DIR):
 	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && swift package generate-xcodeproj --output $(APP_NAME).xcodeproj
+	cd $(BUILD_DIR) && xcodegen generate --spec ../project.yml
 
 $(ARCHIVE_PATH): project
 	xcodebuild -project $(PROJECT_DIR) \

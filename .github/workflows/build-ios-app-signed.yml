@@ -51,11 +51,15 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
+      - name: Install xcodegen
+        run: |
+          brew install xcodegen || true
+
       - name: Generate Xcode project
         run: |
           mkdir -p build
           cd build
-          swift package generate-xcodeproj --output ${APP_NAME}.xcodeproj
+          xcodegen generate --spec ../project.yml
 
       - name: Build Archive (Signed)
         run: |

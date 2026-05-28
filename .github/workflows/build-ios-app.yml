@@ -41,6 +41,7 @@ jobs:
           brew install libimobiledevice
           # For tipa support
           pip3 install requests --break-system-packages
+            brew install xcodegen || true
 
       - name: Create build directory
         run: mkdir -p build
@@ -48,7 +49,7 @@ jobs:
       - name: Generate Xcode project
         run: |
           cd build
-          swift package generate-xcodeproj --output SimplyNFCApp.xcodeproj
+          xcodegen generate --spec ../project.yml
 
       - name: Build for iOS
         run: |

@@ -1,0 +1,36 @@
+name: SimplyNFCApp
+
+options:
+  bundleIdPrefix: com.yanngodeau
+  deploymentTarget:
+    iOS: "14.0"
+
+configs:
+  Release:
+    type: release
+
+targets:
+  SimplyNFC:
+    type: framework
+    platform: iOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/SimplyNFC
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yanngodeau.SimplyNFC
+
+  SimplyNFCApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/SimplyNFCApp
+    dependencies:
+      - target: SimplyNFC
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yanngodeau.SimplyNFCApp
+        INFOPLIST_FILE: Sources/SimplyNFCApp/Resources/Info.plist
+        IPHONEOS_DEPLOYMENT_TARGET: "14.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
