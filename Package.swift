@@ -26,10 +26,7 @@ let package = Package(
         .target(
             name: "SimplyNFCApp",
             dependencies: ["SimplyNFC"],
-            path: "Sources/SimplyNFCApp",
-            resources: [
-                .process("Resources")
-            ]),
+            path: "Sources/SimplyNFCApp"),
         .testTarget(
             name: "SimplyNFCTests",
             dependencies: ["SimplyNFC"]),
