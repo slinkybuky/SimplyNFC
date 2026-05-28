@@ -16,7 +16,9 @@ on:
 jobs:
   build-signed:
     runs-on: macos-latest
-    
+    env:
+      APP_NAME: SimplyNFCApp
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,27 +30,19 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Create variables
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          
-          # import certificate from secrets
+
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          
-          # import provisioning profile from secrets
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-          
-          # create temporary keychain
+
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          
-          # import certificate to keychain
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
-          
-          # copy provisioning profile
+
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
@@ -57,15 +51,21 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
+      - name: Generate Xcode project
+        run: |
+          mkdir -p build
+          cd build
+          swift package generate-xcodeproj --output ${APP_NAME}.xcodeproj
+
       - name: Build Archive (Signed)
         run: |
-          xcodebuild \
-            -scheme SimplyNFC \
+          xcodebuild -project build/${APP_NAME}.xcodeproj \
+            -scheme ${APP_NAME} \
             -configuration Release \
             -derivedDataPath build/DerivedData \
-            -arch arm64 \
             -sdk iphoneos \
-            -archivePath build/SimplyNFC.xcarchive \
+            -arch arm64 \
+            -archivePath build/${APP_NAME}.xcarchive \
             archive
 
       - name: Create Signed IPA
@@ -87,9 +87,9 @@ jobs:
           </dict>
           </plist>
           EOF
-          
+
           xcodebuild \
-            -archivePath build/SimplyNFC.xcarchive \
+            -archivePath build/${APP_NAME}.xcarchive \
             -exportOptionsPlist build/ExportOptions/ExportOptions.plist \
             -exportPath build/IPA \
             -allowProvisioningUpdates \
@@ -99,14 +99,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SimplyNFC-signed-ipa
-          path: build/IPA/SimplyNFC.ipa
+          path: build/IPA/${APP_NAME}.ipa
           retention-days: 30
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: build/IPA/SimplyNFC.ipa
+          files: build/IPA/${APP_NAME}.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -114,4 +114,4 @@ jobs:
         if: always()
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
-          rm ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
