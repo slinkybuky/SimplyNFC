@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - ipa
+          - tipa
+          - both
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-latest
+    env:
+      BUILD_TYPE: ${{ github.event.inputs.build_type || 'both' }}
+      APP_NAME: SimplyNFCApp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Xcode tools
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          brew install libimobiledevice || true
+
+      - name: Build IPA
+        if: env.BUILD_TYPE == 'ipa' || env.BUILD_TYPE == 'both' || env.BUILD_TYPE == ''
+        run: |
+          make clean
+          make package
+
+      - name: Build TIPA
+        if: env.BUILD_TYPE == 'tipa' || env.BUILD_TYPE == 'both' || env.BUILD_TYPE == ''
+        run: |
+          make clean
+          make package TROLLSTORE=1
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimplyNFC-build-artifacts
+          path: |
+            build/*.ipa
+            build/TIPA/*.tipa
+          retention-days: 30
+
+      - name: Verify artifacts
+        run: |
+          echo "Artifacts in build directory:"
+          find build -maxdepth 2 -type f | sort

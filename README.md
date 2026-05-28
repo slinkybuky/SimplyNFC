@@ -52,6 +52,33 @@ nfcManager.read { manager in
 }
 ```
 
+### Example App
+
+This repository now includes a minimal example app target named `SimplyNFCApp`.
+You can build it as a signed or unsigned IPA and also generate a `.tipa` artifact for TrollStore.
+
+### Build workflow
+
+A GitHub Actions workflow has been added at `.github/workflows/build.yml`.
+It supports building:
+
+- `ipa`
+- `tipa`
+- `both`
+
+Run the workflow manually or trigger it on `push` / `pull_request`.
+
+### Local build
+
+You can also build locally from the repository root:
+
+```bash
+make clean
+make package
+make clean
+make package TROLLSTORE=1
+```
+
 ### Write on tag
 
 Writing `NFCNDEFMessage` on tag
